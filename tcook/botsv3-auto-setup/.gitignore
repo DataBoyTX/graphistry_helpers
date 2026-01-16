@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Environment files
+.env
+*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+*.log
+
+# Splunk downloads (if cached locally)
+*.deb
+*.tgz
+*.tar.gz
+
+# Test outputs
+results.json
+results.csv
+*.export
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Nested git directories
+.git.bak/
+
+# Extracted data
+extracted_data/
+test_output/

@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  splunk-botsv3:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: splunk-botsv3
+    hostname: splunk-botsv3
+    environment:
+      - SPLUNK_START_ARGS=--accept-license
+      - SPLUNK_PASSWORD=${SPLUNK_PASSWORD:-changeme123}
+      - SPLUNK_USER=${SPLUNK_USER:-admin}
+      - OPTIMISTIC_ABOUT_FILE_LOCKING=1
+    # privileged mode helps with overlay filesystem issues
+    privileged: true
+    ports:
+      # Splunk Web UI
+      - "8000:8000"
+      # Splunk REST API (splunkd)
+      - "8089:8089"
+      # Splunk Forwarder receiving port
+      - "9997:9997"
+      # HTTP Event Collector
+      - "8088:8088"
+    # Volumes disabled due to permission issues with splunk user
+    # To enable persistence, uncomment and fix volume permissions
+    # volumes:
+    #   - splunk-var:/opt/splunk/var
+    #   - splunk-etc:/opt/splunk/etc
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/en-US/account/login"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+    mem_limit: 4g
+    cpus: 2
+
+# Volumes disabled - see comments above
+# volumes:
+#   splunk-var:
+#     driver: local
+#   splunk-etc:
+#     driver: local
+
+networks:
+  default:
+    name: splunk-network
