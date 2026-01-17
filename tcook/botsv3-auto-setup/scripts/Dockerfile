@@ -1,9 +1,10 @@
 # Splunk Enterprise with BOTSv3 Dataset
 # Automated setup for Boss of the SOC v3 CTF Challenge
+# Includes all required add-ons for proper field extraction
 FROM ubuntu:22.04
 
 LABEL maintainer="Splunk BOTSv3 Docker Setup"
-LABEL description="Splunk Enterprise with pre-loaded BOTSv3 dataset"
+LABEL description="Splunk Enterprise with pre-loaded BOTSv3 dataset and all required add-ons"
 
 # Prevent interactive prompts during installation
 ENV DEBIAN_FRONTEND=noninteractive
@@ -24,6 +25,7 @@ RUN apt-get update && apt-get install -y \
     tar \
     gzip \
     ca-certificates \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
 
 # Create splunk user
@@ -43,6 +45,31 @@ RUN wget -O botsv3_data_set.tgz \
     echo "d7ccca99a01cff070dff3c139cdc10eb  botsv3_data_set.tgz" | md5sum -c - && \
     tar -xzf botsv3_data_set.tgz -C ${SPLUNK_HOME}/etc/apps/ && \
     rm botsv3_data_set.tgz
+
+# Create directory for add-ons
+RUN mkdir -p /tmp/addons
+
+# Copy pre-downloaded add-ons (if available)
+# These are copied from resources/splunk-add-ons/ directory
+COPY splunk-add-ons/ /tmp/addons/
+
+# Install all available add-ons
+# Each add-on tarball extracts to its app directory
+RUN for addon in /tmp/addons/*.tgz; do \
+        if [ -f "$addon" ]; then \
+            echo "Installing add-on: $addon"; \
+            tar -xzf "$addon" -C ${SPLUNK_HOME}/etc/apps/; \
+        fi; \
+    done && \
+    rm -rf /tmp/addons
+
+# Install add-ons from zip files (if any)
+RUN for addon in /tmp/addons/*.zip 2>/dev/null; do \
+        if [ -f "$addon" ]; then \
+            echo "Installing add-on: $addon"; \
+            unzip -q "$addon" -d ${SPLUNK_HOME}/etc/apps/; \
+        fi; \
+    done 2>/dev/null || true
 
 # Create user-seed.conf for initial admin credentials
 RUN mkdir -p ${SPLUNK_HOME}/etc/system/local && \
