@@ -5,21 +5,30 @@ Graphistry SSO Diagnostic Script
 Standalone diagnostic tool for troubleshooting Graphistry SSO configuration.
 Only dependency: requests. No graphistry import needed.
 
+Environment variables:
+    GRAPHISTRY_SERVER   — Server hostname (default: obsidian-tc.grph.xyz)
+    GRAPHISTRY_PROTOCOL — Protocol (default: https)
+
 CLI usage:
+    python diagnose_sso.py
     python diagnose_sso.py --server graphistry-dev.grph.xyz
-    python diagnose_sso.py --server graphistry-dev.grph.xyz --org-name my-org --json
+    python diagnose_sso.py --server localhost --protocol http --json
 
 Importable API:
     from diagnose_sso import run_diagnostic
-    report = run_diagnostic(server="graphistry-dev.grph.xyz")
+    report = run_diagnostic(server="obsidian-tc.grph.xyz")
 """
 
 import argparse
 import json
+import os
 import sys
 import time
 from typing import Any, Callable, Dict, List, Optional
 from urllib.parse import parse_qs, urlparse
+
+DEFAULT_SERVER = os.environ.get("GRAPHISTRY_SERVER", "obsidian-tc.grph.xyz")
+DEFAULT_PROTOCOL = os.environ.get("GRAPHISTRY_PROTOCOL", "https")
 
 try:
     import requests
@@ -683,13 +692,19 @@ def main() -> None:
         description="Graphistry SSO Diagnostic Tool",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
+            "Environment variables:\n"
+            "  GRAPHISTRY_SERVER    Server hostname (default: obsidian-tc.grph.xyz)\n"
+            "  GRAPHISTRY_PROTOCOL  Protocol (default: https)\n"
+            "\n"
             "Examples:\n"
+            "  python diagnose_sso.py\n"
             "  python diagnose_sso.py --server graphistry-dev.grph.xyz\n"
             "  python diagnose_sso.py --server my-server.com --org-name my-org --json\n"
+            "  GRAPHISTRY_SERVER=localhost GRAPHISTRY_PROTOCOL=http python diagnose_sso.py\n"
         ),
     )
-    parser.add_argument("--server", required=True, help="Graphistry server hostname")
-    parser.add_argument("--protocol", default="https", help="Protocol (default: https)")
+    parser.add_argument("--server", default=DEFAULT_SERVER, help=f"Graphistry server hostname (default: {DEFAULT_SERVER})")
+    parser.add_argument("--protocol", default=DEFAULT_PROTOCOL, help=f"Protocol (default: {DEFAULT_PROTOCOL})")
     parser.add_argument("--org-name", default=None, help="Organization name for org-scoped SSO")
     parser.add_argument("--idp-name", default=None, help="IdP name for IdP-specific SSO")
     parser.add_argument("--json", action="store_true", dest="output_json", help="Output JSON report")

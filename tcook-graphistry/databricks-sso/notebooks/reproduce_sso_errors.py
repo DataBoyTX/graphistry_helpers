@@ -7,27 +7,38 @@ This script reproduces the three errors from the client email thread:
   Error 2 (P1): "State is invalid" — polling race condition
   Error 3 (P2): login() missing username/password — wrong API call
 
+Environment variables:
+    GRAPHISTRY_SERVER   — Server hostname (default: obsidian-tc.grph.xyz)
+    GRAPHISTRY_PROTOCOL — Protocol (default: https)
+
 Usage:
-    # Test against local instance
+    # Test against default server (obsidian-tc.grph.xyz)
+    python reproduce_sso_errors.py
+
+    # Override via env var
+    GRAPHISTRY_SERVER=graphistry-dev.grph.xyz python reproduce_sso_errors.py
+
+    # Override via CLI (takes precedence over env var)
     python reproduce_sso_errors.py --server localhost --protocol http
 
-    # Test against remote
-    python reproduce_sso_errors.py --server graphistry-dev.grph.xyz
-
     # Run only specific error tests
-    python reproduce_sso_errors.py --server localhost --protocol http --test error1
-    python reproduce_sso_errors.py --server localhost --protocol http --test error2
-    python reproduce_sso_errors.py --server localhost --protocol http --test error3
+    python reproduce_sso_errors.py --test error1
+    python reproduce_sso_errors.py --test error2
+    python reproduce_sso_errors.py --test error3
 
     # Test the fixed flow (non-blocking, should succeed)
-    python reproduce_sso_errors.py --server localhost --protocol http --test fixed
+    python reproduce_sso_errors.py --test fixed
 """
 
 import argparse
 import json
+import os
 import sys
 import time
 from urllib.parse import parse_qs, urlparse
+
+DEFAULT_SERVER = os.environ.get("GRAPHISTRY_SERVER", "obsidian-tc.grph.xyz")
+DEFAULT_PROTOCOL = os.environ.get("GRAPHISTRY_PROTOCOL", "https")
 
 try:
     import requests
@@ -416,14 +427,19 @@ def main():
             "  error3  — login() missing username/password (wrong API call)\n"
             "  fixed   — Non-blocking SSO (correct pattern)\n"
             "\n"
+            "Environment variables:\n"
+            "  GRAPHISTRY_SERVER    Server hostname (default: obsidian-tc.grph.xyz)\n"
+            "  GRAPHISTRY_PROTOCOL  Protocol (default: https)\n"
+            "\n"
             "Examples:\n"
+            "  python reproduce_sso_errors.py\n"
             "  python reproduce_sso_errors.py --server localhost --protocol http\n"
-            "  python reproduce_sso_errors.py --server localhost --protocol http --test error2\n"
-            "  python reproduce_sso_errors.py --server graphistry-dev.grph.xyz --test fixed\n"
+            "  python reproduce_sso_errors.py --test error2\n"
+            "  GRAPHISTRY_SERVER=graphistry-dev.grph.xyz python reproduce_sso_errors.py --test fixed\n"
         ),
     )
-    parser.add_argument("--server", required=True, help="Graphistry server hostname")
-    parser.add_argument("--protocol", default="https", help="Protocol (default: https)")
+    parser.add_argument("--server", default=DEFAULT_SERVER, help=f"Graphistry server hostname (default: {DEFAULT_SERVER})")
+    parser.add_argument("--protocol", default=DEFAULT_PROTOCOL, help=f"Protocol (default: {DEFAULT_PROTOCOL})")
     parser.add_argument("--org-name", default=None, help="Organization name")
     parser.add_argument("--idp-name", default=None, help="IdP name")
     parser.add_argument(
