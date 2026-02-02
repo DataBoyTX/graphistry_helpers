@@ -68,6 +68,8 @@ code_challenge_method=S256
 per-process), the verifier stored by one worker won't be visible to another worker
 handling the callback. Must use Redis or Memcached.
 
+**Root cause confirmed** — see [Regression Analysis](#regression-analysis) below.
+
 ### Error 2: "State is invalid" (P1 — timing)
 
 ```
@@ -148,6 +150,65 @@ Databricks Notebook                  Graphistry Nexus Server              Okta
 - Both site-wide and org-level SSO fail
 - Default `sso_timeout=50` (blocking) in some cases
 - "Code verifier required" on the server-side token exchange
+
+## Regression Analysis
+
+The "Code verifier required" bug is a **server-side regression**, not a pygraphistry client issue.
+
+### Timeline
+
+| Date | Commit | Author | Change | SSO Impact |
+|------|--------|--------|--------|------------|
+| Mar 2022 | (original) | Koa | PKCE implementation in `client.py` — uses `cache.set('sso_cv_{state}', ...)` / `cache.get('sso_cv_{state}')` which hits Django's `default` cache backend | Works (default was Redis) |
+| Feb 11, 2025 | `8048f8be` | Vaim Dev | Moved Redis config from `dev.py` to `base.py` as `CACHES['default']` | **SSO works** — all workers share Redis |
+| **Feb 20, 2025** | **`6487a138`** | **Vaim Dev** | **Changed `default` to `LocMemCache`, demoted Redis to named `'redis'` alias** | **SSO BROKEN** — verifier lost across workers |
+| May 2024 | — | — | Working test notebook sent to client (`test-v2-40-60.grph.xyz`) | Worked — server was on a pre-regression build |
+| Jan 27, 2026 | — | — | Client reports "Code verifier required" after server upgrade | Upgraded server includes the regression |
+
+### The Regression Commit
+
+**Commit:** `6487a138a570b3c3ab3033078ef1a4130a11c3a0`
+**Date:** Feb 20, 2025
+**Author:** Vaim Dev (`dev@v-aim.com`)
+**Message:** `fix (nexus): use locMems as default cache backend and redis only used for entitlement.`
+**File:** `apps/core/nexus/config/settings/base.py`
+
+The diff:
+```diff
+ CACHES = {
+-    'default': {
++    "default": {
++        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
++    },
++    'redis': {
+         'BACKEND': 'django_redis.cache.RedisCache',
+```
+
+### Why It Broke SSO
+
+The intent was to limit Redis usage to org entitlement metering (which explicitly
+references `caches['redis']`). However, the PKCE code in
+`nexus/allauth_ext/socialaccount/providers/openid_connect/client.py` uses
+`cache.set()` / `cache.get()` (Django's default cache API), which resolves to
+whatever backend is configured as `CACHES['default']`.
+
+After this commit:
+- `cache.set('sso_cv_{state}', code_verifier)` → stored in Worker A's **process-local** LocMemCache
+- `cache.get('sso_cv_{state}')` on callback → Worker B checks **its own** LocMemCache → `None`
+- Okta token exchange sent without `code_verifier` → Okta returns "Code verifier required"
+
+The PKCE `client.py` was never updated to use the named `'redis'` alias.
+
+### Why It Wasn't Caught
+
+- SSO works in single-worker dev mode (LocMemCache is fine with one process)
+- The commit was part of an entitlement feature — SSO wasn't in the test scope
+- No automated test exercises the multi-worker PKCE callback flow
+
+### Fix
+
+Commit `e945b303` (PR to `graphistry/graphistry`): Restore Redis as the `default`
+cache backend. The named `'redis'` alias is kept for backward compatibility.
 
 ## Okta App Configuration
 
