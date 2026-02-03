@@ -179,3 +179,38 @@ Changed Django `CACHES['default']` from `LocMemCache` to `django_redis.cache.Red
 - Error 3 (P2) login() TypeError: REPRODUCED — `graphistry.login()` without args raises TypeError
 - Error 1 (P0) "Code verifier required": Requires LocMemCache to reproduce; with Redis fix applied, SSO callback should succeed
 - Fixed flow: Requires interactive browser login (run manually in terminal)
+
+### Privacy/Iframe Regression Analysis (Feb 2 2026)
+
+**Client email (Livia Hull, Jan 30):** "When I log in first time in Graphistry I can see: Welcome to Graphistry Enterprise. It's only when I try to visualise the plot it's asking me to log in again. This didn't happen before the upgrade."
+
+**David Hutchinson (DBT):** "We have tested against the latest version (0.50.5), and that doesn't work. The latest version that works is 0.45.9." They use `pip install graphistry==0.44.1` as workaround.
+
+**Privacy hypothesis: RULED OUT.** Local venv comparison (`scripts/compare_privacy_defaults.py`) across 0.44.1, 0.45.9, and 0.50.6 shows identical privacy defaults:
+- `PlotterBase._privacy = None` in all versions
+- `cascade_privacy_settings()` defaults to `mode='private'` in all versions
+- `maybe_post_share_link()` guard (only fires if `.privacy()` explicitly called) identical
+
+**Actual regression in 0.50.6 (3 breaking changes):**
+
+1. **`active_organization` now required in SSO response**
+   - 0.44.1/0.45.9: `if 'active_organization' in json_response['data']:` (optional, silently skipped)
+   - 0.50.6: `if not active_org or not active_org.get('slug'): raise Exception("SSO response missing active organization")` (hard crash)
+   - File: `arrow_uploader.py` `sso_get_token()` method
+
+2. **New `_switch_org()` call after SSO login**
+   - 0.50.6 adds: `self._switch_org(slug, token_value or self.token)` — POSTs to `/api/v2/o/{org}/switch/`
+   - Called from 8+ locations in `pygraphistry.py` and `arrow_uploader.py`
+   - If the endpoint fails or server doesn't support it, user may not be authenticated in the correct org context, causing iframe to show login page
+
+3. **API version locked to v3 only**
+   - 0.44.1: `ApiVersion = Literal[1, 3]`, default `api_version = 1`
+   - 0.50.6: `ApiVersion = Literal[3]`, default `api_version = 3`, raises `ValueError` if not 3
+
+**Files added:**
+- `scripts/compare_privacy_defaults.py` — Version comparison script (run in each venv)
+- `scripts/push_notebook.py` — Databricks workspace upload script
+- `notebooks/test_privacy_iframe.ipynb` — Privacy + org-switch regression test (10 cells)
+- `notebooks/test_version_bisect.ipynb` — Version bisect test across 0.45.9–0.50.5 (Databricks)
+- `FINDINGS-databricks-sso-feb02-2026.md` — Full regression analysis and findings
+- `venv-0.44.1/`, `venv-0.45.9/`, `venv-0.50.6/` — Virtual environments for comparison
