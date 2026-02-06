@@ -48,6 +48,16 @@ temp/
 # Nested git directories
 .git.bak/
 
-# Extracted data
+# Extracted/Exported data
 extracted_data/
+exported_data/
 test_output/
+
+# Build artifacts (created during Docker build)
+scripts/splunk-add-ons/
+
+# Test results
+test_results.json
+validation_report.json
+export_manifest.json
+extraction_manifest.json

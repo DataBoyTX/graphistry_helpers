@@ -1,0 +1,30 @@
+# Python
+python_client/venv/
+python_client/__pycache__/
+python_client/*.pyc
+python_client/.env
+python_client/extracted_data/
+python_client/exported_data/
+
+# Git
+.git
+.gitignore
+
+# Documentation (not needed in image)
+*.md
+!README.md
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test outputs
+*.log
+test_results.json
+validation_report.json
+export_manifest.json
+extraction_manifest.json
