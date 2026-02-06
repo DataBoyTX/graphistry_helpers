@@ -1,0 +1,215 @@
+"""Markdown export for cloud-seer reports."""
+
+from pathlib import Path
+
+from cloud_seer.core.models import Finding, KPI, Report, Severity
+
+
+def generate_markdown_report(report: Report) -> str:
+    """Generate Markdown report string.
+
+    Args:
+        report: Report to convert.
+
+    Returns:
+        Markdown string representation of the report.
+    """
+    lines = []
+
+    # Header
+    lines.append("# Cloud-Seer Security Audit Report")
+    lines.append("")
+    lines.append(f"**Generated:** {report.generated_at.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+    lines.append(f"**Accounts Scanned:** {len(report.accounts)}")
+    lines.append(f"**Total Findings:** {len(report.findings)}")
+    lines.append(f"**Scan Duration:** {report.scan_duration_seconds:.1f} seconds")
+    lines.append("")
+
+    # Executive Summary
+    lines.append("## Executive Summary")
+    lines.append("")
+
+    # Overall score
+    overall_kpi = next((k for k in report.kpis if k.name == "Overall Security Score"), None)
+    if overall_kpi:
+        score = overall_kpi.value
+        if score >= 80:
+            status = "**GOOD**"
+        elif score >= 60:
+            status = "**NEEDS ATTENTION**"
+        else:
+            status = "**CRITICAL**"
+        lines.append(f"**Overall Security Score:** {score:.1f}/100 - {status}")
+        lines.append("")
+
+    # Severity breakdown
+    severity_counts = {s: 0 for s in Severity}
+    for finding in report.findings:
+        severity_counts[finding.severity] += 1
+
+    lines.append("### Findings by Severity")
+    lines.append("")
+    lines.append("| Severity | Count |")
+    lines.append("|----------|-------|")
+    for severity in [Severity.CRITICAL, Severity.HIGH, Severity.MEDIUM, Severity.LOW, Severity.INFO]:
+        count = severity_counts[severity]
+        emoji = _severity_emoji(severity)
+        lines.append(f"| {emoji} {severity.value.capitalize()} | {count} |")
+    lines.append("")
+
+    # KPIs
+    lines.append("## Key Performance Indicators")
+    lines.append("")
+    lines.append("| KPI | Value | Target | Status |")
+    lines.append("|-----|-------|--------|--------|")
+
+    for kpi in report.kpis:
+        value_str = _format_kpi_value(kpi)
+        target_str = _format_kpi_target(kpi)
+        status = "PASS" if kpi.is_met else "FAIL"
+        status_emoji = "" if kpi.is_met else ""
+        lines.append(f"| {kpi.name} | {value_str} | {target_str} | {status_emoji} {status} |")
+    lines.append("")
+
+    # Critical and High Findings Detail
+    critical_findings = [f for f in report.findings if f.severity == Severity.CRITICAL]
+    high_findings = [f for f in report.findings if f.severity == Severity.HIGH]
+
+    if critical_findings:
+        lines.append("## Critical Findings (Immediate Action Required)")
+        lines.append("")
+        for finding in critical_findings:
+            lines.extend(_format_finding(finding))
+            lines.append("")
+
+    if high_findings:
+        lines.append("## High Severity Findings")
+        lines.append("")
+        for finding in high_findings:
+            lines.extend(_format_finding(finding))
+            lines.append("")
+
+    # Medium and Low Findings Summary
+    medium_findings = [f for f in report.findings if f.severity == Severity.MEDIUM]
+    low_findings = [f for f in report.findings if f.severity == Severity.LOW]
+
+    if medium_findings:
+        lines.append("## Medium Severity Findings")
+        lines.append("")
+        lines.append("| Account | Region | Resource | Finding |")
+        lines.append("|---------|--------|----------|---------|")
+        for finding in medium_findings:
+            lines.append(
+                f"| {finding.account_id} | {finding.region} | "
+                f"`{finding.resource_id}` | {finding.title} |"
+            )
+        lines.append("")
+
+    if low_findings:
+        lines.append("## Low Severity Findings")
+        lines.append("")
+        lines.append("| Account | Region | Resource | Finding |")
+        lines.append("|---------|--------|----------|---------|")
+        for finding in low_findings:
+            lines.append(
+                f"| {finding.account_id} | {finding.region} | "
+                f"`{finding.resource_id}` | {finding.title} |"
+            )
+        lines.append("")
+
+    # Accounts Summary
+    if report.accounts:
+        lines.append("## Accounts Scanned")
+        lines.append("")
+        lines.append("| Account ID | Name | Provider | Regions |")
+        lines.append("|------------|------|----------|---------|")
+        for account in report.accounts:
+            regions = ", ".join(account.regions_scanned[:3])
+            if len(account.regions_scanned) > 3:
+                regions += f" (+{len(account.regions_scanned) - 3} more)"
+            lines.append(
+                f"| {account.account_id} | {account.account_name} | "
+                f"{account.provider} | {regions} |"
+            )
+        lines.append("")
+
+    # Footer
+    lines.append("---")
+    lines.append("*Report generated by cloud-seer*")
+
+    return "\n".join(lines)
+
+
+def _severity_emoji(severity: Severity) -> str:
+    """Get emoji for severity level."""
+    emojis = {
+        Severity.CRITICAL: "",
+        Severity.HIGH: "",
+        Severity.MEDIUM: "",
+        Severity.LOW: "",
+        Severity.INFO: "",
+    }
+    return emojis.get(severity, "")
+
+
+def _format_kpi_value(kpi: KPI) -> str:
+    """Format KPI value for display."""
+    if kpi.unit == "percent":
+        return f"{kpi.value:.1f}%"
+    elif kpi.unit == "count":
+        return f"{int(kpi.value)}"
+    else:
+        return f"{kpi.value:.1f} {kpi.unit}"
+
+
+def _format_kpi_target(kpi: KPI) -> str:
+    """Format KPI target for display."""
+    if kpi.unit == "percent":
+        return f"{kpi.target:.0f}%"
+    elif kpi.unit == "count":
+        return f"{int(kpi.target)}"
+    else:
+        return f"{kpi.target:.0f} {kpi.unit}"
+
+
+def _format_finding(finding: Finding) -> list[str]:
+    """Format a single finding for markdown output."""
+    lines = []
+    emoji = _severity_emoji(finding.severity)
+
+    lines.append(f"### {emoji} {finding.title}")
+    lines.append("")
+    lines.append(f"- **Account:** {finding.account_id}")
+    lines.append(f"- **Region:** {finding.region}")
+    lines.append(f"- **Resource:** `{finding.resource_type}` / `{finding.resource_id}`")
+    lines.append("")
+    lines.append("**Description:**")
+    lines.append("")
+    lines.append(finding.description)
+    lines.append("")
+    lines.append("**Remediation:**")
+    lines.append("")
+    lines.append("```")
+    lines.append(finding.remediation)
+    lines.append("```")
+
+    return lines
+
+
+def save_markdown_report(report: Report, path: str | Path) -> Path:
+    """Save report as Markdown file.
+
+    Args:
+        report: Report to save.
+        path: Output file path.
+
+    Returns:
+        Path to the saved file.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(path, "w") as f:
+        f.write(generate_markdown_report(report))
+
+    return path
