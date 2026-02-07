@@ -10,22 +10,12 @@
 ## Next
 - [x] Test all Python client commands (search, info, health, indexes, sourcetypes)
 - [x] Verify all 70+ sourcetypes are present in BOTSv3 index (107 found!)
-- [x] Test interactive search mode
+- [ ] Test interactive search mode
 - [x] Test data extraction with multiple formats (JSON, JSONL, Parquet)
 - [x] Validate extracted counts match Splunk counts for ALL sourcetypes
 - [x] Verify Splunk internal fields are stripped correctly
 - [x] Test schema/column extraction accuracy
 - [x] Create example search queries for common BOTSv3 questions (see EXAMPLES.md)
-
-## In Progress (Multi-Format Export)
-- [ ] Install all required BOTSv3 add-ons (download_addons.sh)
-- [ ] Build Docker image with add-ons (./build.sh)
-- [ ] Export data with multi_format_export.py
-- [ ] Run comprehensive validation (test_export_validation.py)
-- [ ] Verify all sourcetype counts match Splunk
-- [ ] Verify all field counts match
-- [ ] Test Wazuh ingestion with JSONL files
-- [ ] Test Databricks ingestion with Parquet files
 
 ## Later (Databricks Integration)
 - [ ] Configure Databricks connection (host, token, warehouse)
@@ -73,11 +63,6 @@
 - [x] Add manifest generation for extraction tracking
 - [x] Add count validation between Splunk and extracts
 - [x] Add schema comparison utilities
-- [x] Create download_addons.sh for BOTSv3 add-on management
-- [x] Create multi_format_export.py (Parquet for Databricks, JSONL for Wazuh)
-- [x] Create test_export_validation.py with comprehensive validation tests
-- [x] Update Dockerfile to install Splunk add-ons
-- [x] Update build.sh to handle add-on installation
 
 ## Blocked
 - None currently
